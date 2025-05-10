@@ -19,13 +19,5 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    role_obj = relationship("Role", back_populates="users")  # Relationship with Role model
-
-
-class Role(Base):
-    __tablename__ = "roles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False)
-
-    users = relationship("User", back_populates="role_obj")
+    # Relationship with Role model
+    role = relationship("Role", back_populates="users")

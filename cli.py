@@ -1,6 +1,7 @@
 import click
 from app.db.base import Base, SessionLocal, engine
-from app.models.user import User, Role
+from app.models.user import User
+from app.models.role import Role
 from app.core.security import get_password_hash
 from sqlalchemy.exc import OperationalError
 

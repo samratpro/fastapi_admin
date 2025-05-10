@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Create the database engine and session
 try:
     engine = create_engine(settings.DATABASE_URL)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -14,6 +15,7 @@ except Exception as e:
     logger.error(f"Failed to connect to database: {e}")
     raise
 
+# Dependency for getting the database session
 def get_db():
     db = SessionLocal()
     try:

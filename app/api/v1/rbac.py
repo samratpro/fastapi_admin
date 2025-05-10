@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.security import get_current_active_user, is_admin
 from app.db.base import get_db
 from app.models.user import User
-from app.models.permission import Role, Permission
+from app.models.permission import Permission
+from app.models.role import Role
 from app.schemas.permission import (
     RoleCreate,
     RoleUpdate,

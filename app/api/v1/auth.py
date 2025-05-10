@@ -11,11 +11,13 @@ from app.core.security import (
     get_current_active_user
 )
 from app.db.base import get_db
-from app.models.user import User, Role
+from app.models.user import User
+from app.models.role import Role
 from app.schemas.user import UserCreate, User as UserSchema, Token, RoleCreate, Role as RoleSchema
 from app.utils.email import EmailSender
 import secrets
 from app.core.security import is_admin
+import re
 
 router = APIRouter()
 
@@ -62,6 +64,41 @@ async def register(
     """
     Register new user.
     """
+    # Validate email format
+    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if not re.match(email_regex, user_in.email):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid email format. Please provide a valid email address.",
+        )
+
+    # Validate password strength
+    if len(user_in.password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long."
+        )
+    if not re.search(r'[A-Z]', user_in.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one uppercase letter."
+        )
+    if not re.search(r'[a-z]', user_in.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one lowercase letter."
+        )
+    if not re.search(r'[0-9]', user_in.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one number."
+        )
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', user_in.password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)."
+        )
+
     # Check if the email is already registered
     user = db.query(User).filter(User.email == user_in.email).first()
     if user:
@@ -78,7 +115,7 @@ async def register(
             detail="A user with this username already exists."
         )
 
-    # Fetch the role for the user (e.g., role "user")
+    # Fetch the role for the user (default: "user")
     role = db.query(Role).filter(Role.name == "user").first()
     if not role:
         raise HTTPException(
@@ -86,8 +123,8 @@ async def register(
             detail="Role 'user' does not exist. Please seed roles first."
         )
 
-    # Generate a verification token
-    verification_token = secrets.token_urlsafe(32)
+    # Generate a verification code
+    verification_code = secrets.token_hex(6)  # Generate a 6-character hexadecimal code
 
     # Create the user with the appropriate role_id
     user = User(
@@ -97,7 +134,7 @@ async def register(
         first_name=user_in.first_name,
         last_name=user_in.last_name,
         role_id=role.id,  # Use role_id instead of role
-        verification_token=verification_token
+        verification_token=verification_code
     )
     
     # Save the user to the database
@@ -106,7 +143,7 @@ async def register(
     db.refresh(user)
 
     # Send verification email
-    await EmailSender.send_verification_email(user.email, verification_token)
+    await EmailSender.send_verification_email(user.email, verification_code)
 
     return user
 
@@ -146,19 +183,19 @@ async def login(
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.post("/verify/{token}")
+@router.post("/verify/{code}")
 async def verify_email(
-    token: str,
+    code: str,
     db: Session = Depends(get_db)
 ) -> Any:
     """
-    Verify user email.
+    Verify user email using a code.
     """
-    user = db.query(User).filter(User.verification_token == token).first()
+    user = db.query(User).filter(User.verification_token == code).first()
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Invalid verification token"
+            detail="Invalid verification code."
         )
     
     user.is_verified = True
@@ -166,6 +203,103 @@ async def verify_email(
     db.commit()
     
     return {"message": "Email verified successfully"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    email: str,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Request a password reset. A reset code is sent to the user's email if they exist.
+    """
+    # Search for the user by email
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User with this email does not exist."
+        )
+    
+    # Generate a reset code
+    reset_code = secrets.token_hex(6)  # Generate a 6-character hexadecimal code
+    user.verification_token = reset_code  # Reuse the verification_token field for reset code
+    db.commit()
+
+    # Send the reset code to the user's email
+    await EmailSender.send_password_reset_email(user.email, reset_code)
+
+    return {"message": "Password reset code sent to your email."}
+
+@router.post("/verify-reset-code")
+async def verify_reset_code(
+    code: str,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Verify if the reset code is valid.
+    """
+    # Search for the user by reset code
+    user = db.query(User).filter(User.verification_token == code).first()
+    if not user:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset code."
+        )
+    
+    return {"message": "Reset code is valid."}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    code: str,
+    new_password: str,
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Reset the user's password using a valid reset code.
+    """
+    # Validate password strength
+    if len(new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long."
+        )
+    if not re.search(r'[A-Z]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one uppercase letter."
+        )
+    if not re.search(r'[a-z]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one lowercase letter."
+        )
+    if not re.search(r'[0-9]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one number."
+        )
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)."
+        )
+
+    # Search for the user by reset code
+    user = db.query(User).filter(User.verification_token == code).first()
+    if not user:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset code."
+        )
+    
+    # Update the user's password
+    user.hashed_password = get_password_hash(new_password)
+    user.verification_token = None  # Clear the reset code
+    db.commit()
+
+    return {"message": "Password updated successfully."}
 
 @router.get("/me", response_model=UserSchema)
 async def read_users_me(
@@ -175,3 +309,61 @@ async def read_users_me(
     Get current user.
     """
     return current_user
+
+
+@router.put("/update-password")
+async def update_password(
+    current_password: str,
+    new_password: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Update the password for an authenticated user.
+    """
+    # Verify the current password
+    if not verify_password(current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect."
+        )
+
+    # Validate the new password strength
+    if len(new_password) < 8:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 8 characters long."
+        )
+    if not re.search(r'[A-Z]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one uppercase letter."
+        )
+    if not re.search(r'[a-z]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one lowercase letter."
+        )
+    if not re.search(r'[0-9]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one number."
+        )
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="Password must contain at least one special character (!@#$%^&*(),.?\":{}|<>)."
+        )
+
+    # Check if the new password is the same as the old password
+    if verify_password(new_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=400,
+            detail="The new password cannot be the same as the current password."
+        )
+
+    # Update the user's password
+    current_user.hashed_password = get_password_hash(new_password)
+    db.commit()
+
+    return {"message": "Password updated successfully."}

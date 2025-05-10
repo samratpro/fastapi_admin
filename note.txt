@@ -1,7 +1,6 @@
 source venv/scripts/activate
-uvicorn app.main:app --reload
-auth.py
+python cli.py create-admin
 username: email
 password: password
+uvicorn app.main:app --reload
 
-python cli.py create-admin

@@ -1,32 +1,30 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
-class PermissionBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-
-class PermissionCreate(PermissionBase):
-    pass
-
-class Permission(PermissionBase):
-    id: int
-
-    class Config:
-        from_attributes = True
-
 class RoleBase(BaseModel):
     name: str
     description: Optional[str] = None
 
 class RoleCreate(RoleBase):
-    permissions: List[int]
+    pass
 
-class RoleUpdate(RoleBase):
-    permissions: Optional[List[int]] = None
+class RoleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
 
 class Role(RoleBase):
     id: int
-    permissions: List[Permission]
+
+    class Config:
+        from_attributes = True
+
+class RolePermissionCreate(BaseModel):
+    role_id: int
+    model_name: str
+    permissions: List[str]
+
+class RolePermission(RolePermissionCreate):
+    id: int
 
     class Config:
         from_attributes = True

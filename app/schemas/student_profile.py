@@ -5,15 +5,18 @@ from datetime import datetime
 class StudentProfileBase(BaseModel):
     student_id: str
     department: str
+    date_of_birth: datetime
     phone_number: Optional[str] = None
     address: Optional[str] = None
 
 class StudentProfileCreate(StudentProfileBase):
-    pass
+    user_id: int
 
-class StudentProfileUpdate(StudentProfileBase):
-    student_id: Optional[str] = None
+class StudentProfileUpdate(BaseModel):
     department: Optional[str] = None
+    date_of_birth: Optional[datetime] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
 
 class StudentProfile(StudentProfileBase):
     id: int

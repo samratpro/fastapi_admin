@@ -13,6 +13,27 @@ from app.schemas.student_profile import (
 
 router = APIRouter()
 
+'''
+@router.get("/")
+@has_permission("read")
+async def list_students(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    return db.query(StudentProfile).all()
+
+@router.post("/")
+@has_permission("create")
+async def create_student(
+    student_in: StudentProfileCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    # Your create logic here
+    pass
+
+'''
+
 @router.get("/", response_model=List[StudentProfileSchema])
 def list_student_profiles(
     skip: int = 0,

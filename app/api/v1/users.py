@@ -58,11 +58,23 @@ async def create_user(
     request: Request
 ) -> Any:
     """
-    Create new user.
+    Create a new user.
     """
-    if not is_admin(current_user):
-        raise HTTPException(status_code=403, detail="Not enough permissions")
 
+    # Check if username or email already exists
+    if db.query(User).filter(User.username == user_in.username).first():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Username '{user_in.username}' is already in use."
+        )
+
+    if db.query(User).filter(User.email == user_in.email).first():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Email '{user_in.email}' is already in use."
+        )
+
+    # If no conflict, proceed to create the new user
     user = User(
         email=user_in.email,
         username=user_in.username,
@@ -73,7 +85,7 @@ async def create_user(
         is_active=True,
         is_verified=True  # Admin-created users are automatically verified
     )
-    
+
     db.add(user)
     db.commit()
     db.refresh(user)

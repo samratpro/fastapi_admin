@@ -1,27 +1,12 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
-from app.schemas.permission import Permission
-
-
-class RoleBase(BaseModel):
-    name: str
-
-class RoleCreate(RoleBase):
-    pass
-
-class Role(RoleBase):
-    id: int
-
-    class Config:
-        orm_mode = True
 
 class UserBase(BaseModel):
     email: EmailStr
     username: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    
 
 class UserCreate(UserBase):
     password: str
@@ -46,14 +31,14 @@ class UserInDBBase(UserBase):
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # Updated from orm_mode
+        from_attributes = True
 
 class User(UserInDBBase):
     pass
 
 class UserWithPermissions(UserInDBBase):
     role: Optional[str] = None
-    permissions: List[Permission] = []
+    permissions: List[str] = []
 
 class Token(BaseModel):
     access_token: str

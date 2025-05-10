@@ -13,7 +13,8 @@ from app.core.security import (
 from app.db.base import get_db
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.user import UserCreate, User as UserSchema, Token, RoleCreate, Role as RoleSchema
+from app.schemas.user import UserCreate, User as UserSchema, Token
+from app.schemas.permission import RoleCreate, Role as RoleSchema  # Import from permission schema instead
 from app.utils.email import EmailSender
 import secrets
 from app.core.security import is_admin

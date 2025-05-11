@@ -1,22 +1,27 @@
-version: "3.3"
+version: '3'
 
 services:
   fastapi:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fastapi_admin
-    volumes:
-      - .:/app
-    ports:
-      - "8000:8000"
+    build: .
+    container_name: fastapi_app
+    restart: always
+    networks:
+      - web_network
 
   nginx:
     image: nginx:latest
-    container_name: nginx_server
-    volumes:
-      - ./nginx:/etc/nginx/conf.d
+    container_name: nginx_fastapi
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - /etc/letsencrypt:/etc/letsencrypt
     depends_on:
       - fastapi
+    networks:
+      - web_network
+
+networks:
+  web_network:
+    name: web_network

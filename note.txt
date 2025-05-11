@@ -4,3 +4,16 @@ username: email
 password: password
 uvicorn app.main:app --reload
 
+
+
+
+# Stop and remove existing containers
+docker-compose down
+
+# Remove old images
+docker system prune -f
+
+# Rebuild and start with logs
+docker-compose up --build
+ip:8080
+

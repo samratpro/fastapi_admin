@@ -1,9 +1,13 @@
-version: "3.3"
+version: "3.8"
+
 services:
   fastapi:
     build:
-      context: ./app
-    container_name: fastapi_app
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi_admin
+    volumes:
+      - .:/app
     ports:
       - "8000:8000"
 
@@ -11,7 +15,7 @@ services:
     image: nginx:latest
     container_name: nginx_server
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx:/etc/nginx/conf.d
     ports:
       - "80:80"
     depends_on:

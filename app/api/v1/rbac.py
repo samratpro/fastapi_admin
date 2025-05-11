@@ -99,13 +99,14 @@ async def delete_role(
     db.commit()
     return {"message": "Role deleted successfully"}
 
+
 @router.post("/permissions")
 async def set_permissions(
     permission_in: RolePermissionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Set permissions for a role on a model"""
+    """Set permissions for a role on multiple models"""
     if not current_user.role or current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -118,20 +119,31 @@ async def set_permissions(
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
 
-    # Update or create permission
-    permission = db.query(RolePermissionModel).filter(
-        RolePermissionModel.role_id == permission_in.role_id,
-        RolePermissionModel.model_name == permission_in.model_name
-    ).first()
+    # Handle multiple models
+    if not isinstance(permission_in.model_name, list):
+        permission_in.model_name = [permission_in.model_name]
 
-    if permission:
-        permission.permissions = permission_in.permissions
-    else:
-        permission = RolePermissionModel(**permission_in.dict())
-        db.add(permission)
+    for model in permission_in.model_name:
+        # Update or create permission for each model
+        permission = db.query(RolePermissionModel).filter(
+            RolePermissionModel.role_id == permission_in.role_id,
+            RolePermissionModel.model_name == model
+        ).first()
+
+        if permission:
+            permission.permissions = permission_in.permissions
+        else:
+            permission_data = {
+                "role_id": permission_in.role_id,
+                "model_name": model,
+                "permissions": permission_in.permissions,
+            }
+            permission = RolePermissionModel(**permission_data)
+            db.add(permission)
 
     db.commit()
     return {"message": "Permissions updated successfully"}
+
 
 @router.delete("/permissions/{role_id}/{model_name}")
 async def remove_permissions(

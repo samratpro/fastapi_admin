@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.db.base import get_db
@@ -12,28 +12,46 @@ from app.schemas.permission import (
     RoleUpdate
 )
 from app.core.security import get_current_active_user
+import json
+from app.core.admin import AdminModelRegister
 
 router = APIRouter()
 
 @router.post("/roles", response_model=RoleSchema)
 async def create_role(
-    role_in: RoleCreate,
+    *,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    role_in: RoleCreate,
+    current_user: User = Depends(get_current_active_user),
 ):
-    """Create a new role"""
+    """
+    Create a new role (admin only).
+    """
+    # Verify if the current user is an admin
     if not current_user.role or current_user.role.name != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    existing = db.query(Role).filter(Role.name == role_in.name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Role already exists")
-
-    role = Role(**role_in.dict())
-    db.add(role)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin users can create roles."
+        )
+    
+    # Normalize the role name to lowercase for consistency
+    role_name = role_in.name.strip().lower()
+    
+    # Check if the role already exists
+    existing_role = db.query(Role).filter(Role.name == role_name).first()
+    if existing_role:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Role '{role_name}' already exists."
+        )
+    
+    # Create the role if all checks pass
+    new_role = Role(name=role_name)
+    db.add(new_role)
     db.commit()
-    db.refresh(role)
-    return role
+    db.refresh(new_role)
+    return new_role
+
 
 @router.get("/roles", response_model=List[RoleSchema])
 async def list_roles(
@@ -100,13 +118,66 @@ async def delete_role(
     return {"message": "Role deleted successfully"}
 
 
+@router.get("/models-and-permissions")
+async def get_models_and_permissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retrieve all registered models and existing permissions
+    """
+    if not current_user.role or current_user.role.name != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    try:
+        # Get all registered models
+        registered_models = AdminModelRegister.get_registered_models()
+        model_list = [model.__name__ for model in registered_models]
+
+        # Get all existing permissions from the database
+        permissions = db.query(RolePermissionModel).all()
+        permissions_list = []
+
+        for perm in permissions:
+            try:
+                # Validate and parse model_name
+                model_name = perm.model_name
+                if isinstance(model_name, str):
+                    model_name = json.loads(model_name)  # Parse JSON if stored as a string
+                elif model_name is None:
+                    model_name = []  # Default to an empty list if NULL
+                elif not isinstance(model_name, list):
+                    raise ValueError("Invalid model_name format")
+                
+                permissions_list.append({
+                    "role_id": perm.role_id,
+                    "model_name": model_name,
+                    "permissions": perm.permissions
+                })
+            except (ValueError, TypeError, json.JSONDecodeError) as e:
+                # Log invalid entries and skip them
+                print(f"Skipping invalid entry: {perm.model_name} (Error: {e})")
+                continue
+
+        return {
+            "models": model_list,
+            "permissions": permissions_list
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while retrieving models and permissions: {str(e)}"
+        )
+
+
 @router.post("/permissions")
 async def set_permissions(
     permission_in: RolePermissionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Set permissions for a role on multiple models"""
+    """Set permissions for a role (replace existing permissions if role_id matches)."""
     if not current_user.role or current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -114,32 +185,30 @@ async def set_permissions(
     if not all(p in valid_permissions for p in permission_in.permissions):
         raise HTTPException(status_code=400, detail="Invalid permissions")
 
+    # Validate model_name
+    if not isinstance(permission_in.model_name, list):
+        permission_in.model_name = [permission_in.model_name]
+    for model in permission_in.model_name:
+        if not isinstance(model, str):
+            raise HTTPException(status_code=400, detail="Invalid model name format")
+
     # Check if role exists
     role = db.query(Role).filter(Role.id == permission_in.role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
 
-    # Handle multiple models
-    if not isinstance(permission_in.model_name, list):
-        permission_in.model_name = [permission_in.model_name]
+    # Delete existing permissions for the role_id
+    db.query(RolePermissionModel).filter(RolePermissionModel.role_id == permission_in.role_id).delete()
 
+    # Create new permissions
     for model in permission_in.model_name:
-        # Update or create permission for each model
-        permission = db.query(RolePermissionModel).filter(
-            RolePermissionModel.role_id == permission_in.role_id,
-            RolePermissionModel.model_name == model
-        ).first()
-
-        if permission:
-            permission.permissions = permission_in.permissions
-        else:
-            permission_data = {
-                "role_id": permission_in.role_id,
-                "model_name": model,
-                "permissions": permission_in.permissions,
-            }
-            permission = RolePermissionModel(**permission_data)
-            db.add(permission)
+        permission_data = {
+            "role_id": permission_in.role_id,
+            "model_name": json.dumps([model]),  # Ensure it's a valid JSON array
+            "permissions": permission_in.permissions,
+        }
+        permission = RolePermissionModel(**permission_data)
+        db.add(permission)
 
     db.commit()
     return {"message": "Permissions updated successfully"}

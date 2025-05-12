@@ -9,7 +9,6 @@ from app.models.audit import AuditLog
 from app.utils.audit import log_activity
 from app.schemas.user import User as UserSchema
 from datetime import datetime, timedelta
-import json
 
 router = APIRouter()
 

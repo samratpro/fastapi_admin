@@ -60,7 +60,8 @@ async def create_user(
     """
     Create a new user.
     """
-
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
     # Check if username or email already exists
     if db.query(User).filter(User.username == user_in.username).first():
         raise HTTPException(

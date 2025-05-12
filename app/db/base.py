@@ -9,6 +9,7 @@ from app.models.role import Role  # noqa
 from app.models.course import Course  # noqa
 from app.models.student_profile import StudentProfile  # noqa
 from app.models.course import Course  # noqa
+from app.models.metadata import Metadata  # noqa
 
 logger = logging.getLogger(__name__)
 

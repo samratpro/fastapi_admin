@@ -11,7 +11,7 @@ from app.schemas.course import CourseCreate, CourseUpdate, Course as CourseSchem
 router = APIRouter()
 
 @router.get("/", response_model=List[CourseSchema])
-@has_permission("read")
+@has_permission("read", model_name="Course")
 async def list_courses(
     skip: int = 0,
     limit: int = 100,
@@ -22,7 +22,7 @@ async def list_courses(
     return courses
 
 @router.post("/", response_model=CourseSchema)
-@has_permission("create")
+@has_permission("create", model_name="Course")
 async def create_course(
     course_in: CourseCreate,
     db: Session = Depends(get_db),
@@ -35,7 +35,7 @@ async def create_course(
     return course
 
 @router.get("/{course_id}", response_model=CourseSchema)
-@has_permission("read")
+@has_permission("read", model_name="Course")
 async def get_course(
     course_id: int,
     db: Session = Depends(get_db),
@@ -47,7 +47,7 @@ async def get_course(
     return course
 
 @router.put("/{course_id}", response_model=CourseSchema)
-@has_permission("update")
+@has_permission("update", model_name="Course")
 async def update_course(
     course_id: int,
     course_in: CourseUpdate,
@@ -67,7 +67,7 @@ async def update_course(
     return course
 
 @router.delete("/{course_id}")
-@has_permission("delete")
+@has_permission("delete", model_name="Course")
 async def delete_course(
     course_id: int,
     db: Session = Depends(get_db),

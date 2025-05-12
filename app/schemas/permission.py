@@ -20,7 +20,7 @@ class Role(RoleBase):
 
 class RolePermissionCreate(BaseModel):
     role_id: int
-    model_name: str
+    model_name: List[str]
     permissions: List[str]
 
 class RolePermission(RolePermissionCreate):

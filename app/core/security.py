@@ -64,9 +64,9 @@ def is_admin(user: User) -> bool:
     # Access the user's role through the relationship
     return user.role and user.role.name == "admin"
 
-def is_staff_or_admin(user: User) -> bool:
-    """
-    Check if the user has the 'admin' or 'staff' role.
-    """
-    # Access the user's role through the relationship or by querying the role
-    return user.role and user.role.name in ["admin", "staff"]
+# def is_staff_or_admin(user: User) -> bool:
+#     """
+#     Check if the user has the 'admin' or 'staff' role.
+#     """
+#     # Access the user's role through the relationship or by querying the role
+#     return user.role and user.role.name in ["admin", "staff"]

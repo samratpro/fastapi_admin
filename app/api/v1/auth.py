@@ -22,40 +22,6 @@ import re
 
 router = APIRouter()
 
-
-@router.post("/roles", response_model=RoleSchema)
-def create_role(
-    *,
-    db: Session = Depends(get_db),
-    role_in: RoleCreate,
-    current_user: User = Depends(get_current_active_user),  # Get the current authenticated user
-):
-    """
-    Create a new role (admin only).
-    """
-    # Verify if the current user is an admin
-    if not is_admin(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can create roles."
-        )
-    
-    # Check if the role already exists
-    existing_role = db.query(Role).filter(Role.name == role_in.name.lower()).first()
-    if existing_role:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Role '{role_in.name.lower()}' already exists."
-        )
-    
-    # Create the role if all checks pass
-    new_role = Role(name=role_in.name.lower())
-    db.add(new_role)
-    db.commit()
-    db.refresh(new_role)
-    return new_role
-
-
 @router.post("/register", response_model=UserSchema)
 async def register(
     *,

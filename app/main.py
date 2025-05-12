@@ -1,11 +1,13 @@
-# app/main.py
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from app.core.admin import AdminModelRegister
 from app.models.user import User
 from app.models.student_profile import StudentProfile
 from app.models.course import Course
-from app.core.security import get_current_active_user, is_staff_or_admin
+from app.core.security import get_current_active_user
+from app.core.permissions import has_permission
+from app.db.base import get_db  # Import get_db from session
 from app.db.base import Base, engine
 from app.api.v1 import admin, auth, courses, rbac, student_profiles, users
 
@@ -44,13 +46,27 @@ AdminModelRegister.register(
     ordering=["-created_at"]
 )
 
-# Register Course model once with its metadata
+# Register Course model with its metadata
 AdminModelRegister.register(
     Course,
     list_display=["code", "title", "credits"],
     search_fields=["code", "title"],
     filter_fields=["credits"],
-    ordering=["-created_at"]
+    ordering=["-created_at"],
+    title_help_text="Enter the full course title",
+    description_help_text="Detailed course description",
+    status_choices=[
+        ("active", "Active"),
+        ("inactive", "Inactive"),
+        ("archived", "Archived")
+    ],
+    description_widget="rich_text",
+    form_layout=[
+        {"section": "Basic Information", "fields": ["code", "title", "credits"]},
+        {"section": "Details", "fields": ["description", "prerequisites"]},
+        {"section": "Settings", "fields": ["status", "is_active"]}
+    ],
+    students_display_fields=["id", "full_name", "email"]
 )
 
 # Include routers
@@ -59,18 +75,21 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(rbac.router, prefix="/api/rbac", tags=["rbac"])
 app.include_router(courses.router, prefix="/api/courses", tags=["courses"])
-app.include_router(student_profiles.router, prefix="/api/student-profiles", tags=["student-profiles"])
+# app.include_router(student_profiles.router, prefix="/api/student-profiles", tags=["student-profiles"])
+
 
 @app.get("/api/metadata")
+@has_permission("read", model_name="Metadata")
 async def get_metadata(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)  # Add the db dependency
 ):
-    """Get metadata for admin panel"""
-    if not is_staff_or_admin(current_user):
-        raise HTTPException(status_code=403, detail="Not enough permissions")
+    """
+    Get metadata for the admin panel
+    """
     return AdminModelRegister.get_metadata()
 
-@app.get("/")
-async def root():
-    return {"message": "School Management System API"}
 
+@app.get("/api")
+async def root():
+    return {"message": "FastAPI Admin Panel API"}

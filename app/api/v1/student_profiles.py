@@ -1,7 +1,7 @@
 from typing import List, Any
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from app.core.security import get_current_active_user, is_staff_or_admin
+from app.core.security import get_current_active_user
 from app.db.base import get_db
 from app.models.user import User
 from app.models.student_profile import StudentProfile
@@ -44,8 +44,6 @@ def list_student_profiles(
     """
     Retrieve student profiles.
     """
-    if not is_staff_or_admin(current_user):
-        raise HTTPException(status_code=403, detail="Not enough permissions")
     
     profiles = db.query(StudentProfile).offset(skip).limit(limit).all()
     return profiles
@@ -92,8 +90,6 @@ def get_student_profile(
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
     
-    if not is_staff_or_admin(current_user) and profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
     
     return profile
 
@@ -112,8 +108,6 @@ def update_student_profile(
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
     
-    if not is_staff_or_admin(current_user) and profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
     
     for field, value in profile_in.dict(exclude_unset=True).items():
         setattr(profile, field, value)
@@ -137,8 +131,6 @@ def delete_student_profile(
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
     
-    if not is_staff_or_admin(current_user) and profile.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
     
     db.delete(profile)
     db.commit()

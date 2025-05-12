@@ -17,3 +17,14 @@ docker system prune -f
 docker-compose up --build
 ip:8080
 
+
+
+to add new model
+1. create model
+2. create schema
+3. create router in api section with has_permission example course.py exclude : student_profile
+4. import db/base.py and models/__init__.py
+5. AdminModelRegister in main.py 
+6. Router will dynamically handle metadata router
+6. But, to include new model router directly add router section in main.py
+

@@ -3,13 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from app.core.admin import AdminModelRegister
 from app.models.user import User
-from app.models.student_profile import StudentProfile
 from app.models.course import Course
 from app.core.security import get_current_active_user
 from app.core.permissions import has_permission
 from app.db.base import get_db  # Import get_db from session
 from app.db.base import Base, engine
-from app.api.v1 import admin, auth, courses, rbac, student_profiles, users
+from app.api.v1 import admin, auth, courses, rbac, users
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -38,13 +37,6 @@ AdminModelRegister.register(
     ordering=["-created_at"]
 )
 
-AdminModelRegister.register(
-    StudentProfile,
-    list_display=["student_id", "department", "gender"],
-    search_fields=["student_id", "department"],
-    filter_fields=["gender", "department"],
-    ordering=["-created_at"]
-)
 
 # Register Course model with its metadata
 AdminModelRegister.register(
@@ -74,8 +66,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(rbac.router, prefix="/api/rbac", tags=["rbac"])
-app.include_router(courses.router, prefix="/api/courses", tags=["courses"])
-# app.include_router(student_profiles.router, prefix="/api/student-profiles", tags=["student-profiles"])
+# app.include_router(courses.router, prefix="/api/courses", tags=["courses"])
 
 
 @app.get("/api/metadata")

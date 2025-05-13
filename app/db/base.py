@@ -3,12 +3,13 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 import logging
 
-from app.db.base_class import Base  # noqa
-from app.models.user import User  # noqa
-from app.models.role import Role  # noqa
-from app.models.course import Course  # noqa
-from app.models.course import Course  # noqa
-from app.models.metadata import Metadata  # noqa
+from app.db.base_class import Base
+# Import all models to register with Base.metadata
+from app.models.user import User
+from app.models.role import Role
+from app.models.db_user_permission import RolePermissionModel
+from app.models.public_role import PublicRole
+from app.models.admin_access_role import AdminAccessRole
 
 logger = logging.getLogger(__name__)
 
@@ -27,3 +28,6 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Optional: Create tables for development/testing (comment out in production)
+# Base.metadata.create_all(bind=engine)

@@ -67,7 +67,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(db_permission.router, prefix="/api/db_model", tags=["db_permission"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
-# app.include_router(courses.router, prefix="/api/courses", tags=["courses"])
+app.include_router(courses.router, prefix="/api/courses", tags=["courses"])
 
 
 @app.get("/api/metadata")

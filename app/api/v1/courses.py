@@ -10,7 +10,12 @@ from app.schemas.course import CourseCreate, CourseUpdate, Course as CourseSchem
 
 router = APIRouter()
 
-@router.get("/", response_model=List[CourseSchema])
+@router.get(
+    "/",
+    response_model=List[CourseSchema],
+    summary="List all courses",
+    description="Retrieve a paginated list of courses. Requires 'read' permission for the Course model."
+)
 @has_permission("read", model_name="Course")
 async def list_courses(
     skip: int = 0,
@@ -21,7 +26,12 @@ async def list_courses(
     courses = db.query(Course).offset(skip).limit(limit).all()
     return courses
 
-@router.post("/", response_model=CourseSchema)
+@router.post(
+    "/",
+    response_model=CourseSchema,
+    summary="Create a new course",
+    description="Create a new course. Requires 'create' permission for the Course model."
+)
 @has_permission("create", model_name="Course")
 async def create_course(
     course_in: CourseCreate,
@@ -34,7 +44,12 @@ async def create_course(
     db.refresh(course)
     return course
 
-@router.get("/{course_id}", response_model=CourseSchema)
+@router.get(
+    "/{course_id}",
+    response_model=CourseSchema,
+    summary="Get a specific course",
+    description="Retrieve a course by ID. Requires 'read' permission for the Course model."
+)
 @has_permission("read", model_name="Course")
 async def get_course(
     course_id: int,
@@ -46,7 +61,12 @@ async def get_course(
         raise HTTPException(status_code=404, detail="Course not found")
     return course
 
-@router.put("/{course_id}", response_model=CourseSchema)
+@router.put(
+    "/{course_id}",
+    response_model=CourseSchema,
+    summary="Update a course",
+    description="Update an existing course by ID. Requires 'update' permission for the Course model."
+)
 @has_permission("update", model_name="Course")
 async def update_course(
     course_id: int,
@@ -66,7 +86,11 @@ async def update_course(
     db.refresh(course)
     return course
 
-@router.delete("/{course_id}")
+@router.delete(
+    "/{course_id}",
+    summary="Delete a course",
+    description="Delete a course by ID. Requires 'delete' permission for the Course model."
+)
 @has_permission("delete", model_name="Course")
 async def delete_course(
     course_id: int,

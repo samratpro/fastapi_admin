@@ -13,12 +13,13 @@ from app.core.security import (
 from app.db.base import get_db
 from app.models.user import User
 from app.models.role import Role
+from app.models.public_role import PublicRole
 from app.schemas.user import UserCreate, User as UserSchema, Token
-from app.schemas.permission import RoleCreate, Role as RoleSchema  # Import from permission schema instead
 from app.utils.email import EmailSender
 import secrets
-from app.core.security import is_admin
 import re
+from app.models.admin_access_role import AdminAccessRole
+
 
 router = APIRouter()
 
@@ -29,7 +30,7 @@ async def register(
     user_in: UserCreate,
 ) -> Any:
     """
-    Register new user.
+    Register new user with a public role.
     """
     # Validate email format
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -82,25 +83,48 @@ async def register(
             detail="A user with this username already exists."
         )
 
-    # Fetch the role for the user (default: "user")
-    role = db.query(Role).filter(Role.name == "user").first()
-    if not role:
-        raise HTTPException(
-            status_code=400,
-            detail="Role 'user' does not exist. Please seed roles first."
-        )
+    # Get public roles
+    public_role = db.query(PublicRole).first()
+    public_role_ids = public_role.role_ids if public_role else []
+
+    # Determine the role for the user
+    if user_in.role_id:
+        if user_in.role_id not in public_role_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Role with ID {user_in.role_id} is not available for public registration."
+            )
+        role = db.query(Role).filter(Role.id == user_in.role_id).first()
+        if not role:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Role with ID {user_in.role_id} does not exist."
+            )
+    else:
+        # Default to "user" role
+        role = db.query(Role).filter(Role.name == "user").first()
+        if not role:
+            raise HTTPException(
+                status_code=400,
+                detail="Role 'user' does not exist. Please seed roles first."
+            )
+        if role.id not in public_role_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="Default 'user' role is not available for public registration."
+            )
 
     # Generate a verification code
-    verification_code = secrets.token_hex(6)  # Generate a 6-character hexadecimal code
+    verification_code = secrets.token_hex(6)
 
-    # Create the user with the appropriate role_id
+    # Create the user with the selected role
     user = User(
         email=user_in.email,
         username=user_in.username,
         hashed_password=get_password_hash(user_in.password),
         first_name=user_in.first_name,
         last_name=user_in.last_name,
-        role_id=role.id,  # Use role_id instead of role
+        role_id=role.id,
         verification_token=verification_code
     )
     
@@ -334,3 +358,56 @@ async def update_password(
     db.commit()
 
     return {"message": "Password updated successfully."}
+
+
+# admin panel login
+
+@router.post("/admin-login", response_model=Token)
+async def admin_login(
+    db: Session = Depends(get_db),
+    form_data: OAuth2PasswordRequestForm = Depends()
+) -> Any:
+    """
+    OAuth2 compatible token login for admin access roles or admin users.
+    """
+    user = db.query(User).filter(User.email == form_data.username).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email not found"
+        )
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password"
+        )
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Please verify your email first"
+        )
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is inactive"
+        )
+
+    # Check if user has admin access
+    if user.role and user.role.name.lower() == "admin":
+        # Admin role bypass
+        pass
+    else:
+        # Check if user's role_id is in admin_access_roles
+        admin_access_role = db.query(AdminAccessRole).first()
+        admin_access_role_ids = admin_access_role.role_ids if admin_access_role else []
+        if user.role_id not in admin_access_role_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User does not have admin access privileges"
+            )
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}

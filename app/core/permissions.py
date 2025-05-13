@@ -1,7 +1,8 @@
 from functools import wraps
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.models.role_permission import RolePermissionModel
+from app.models.db_user_permission import RolePermissionModel
+import json
 
 def has_permission(permission_type: str, model_name: str = None):
     """
@@ -20,13 +21,22 @@ def has_permission(permission_type: str, model_name: str = None):
             inferred_model_name = func.__module__.split('.')[-1].split('_')[0].capitalize()
             target_model_name = model_name or inferred_model_name
 
-            # Check permission
+            # Check permission in model_permissions
             permission = db.query(RolePermissionModel).filter(
-                RolePermissionModel.role_id == current_user.role_id,
-                RolePermissionModel.model_name.contains(target_model_name)
+                RolePermissionModel.role_id == current_user.role_id
             ).first()
 
-            if not permission or permission_type not in permission.permissions:
+            if not permission or not permission.model_permissions:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"No permissions found for role {current_user.role_id}"
+                )
+
+            # Get model-specific permissions for the role
+            role_perms = permission.model_permissions.get(str(current_user.role_id), {})
+            model_perms = role_perms.get(target_model_name, [])
+
+            if permission_type not in model_perms:
                 raise HTTPException(
                     status_code=403,
                     detail=f"No {permission_type} permission for {target_model_name}"

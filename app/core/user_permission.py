@@ -2,7 +2,7 @@ from functools import wraps
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.user import User
-from app.models.role_permission import RolePermissionModel
+from app.models.db_user_permission import RolePermissionModel
 
 def has_user_permission(action: str):
     def decorator(func):

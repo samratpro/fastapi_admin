@@ -15,7 +15,7 @@ from app.schemas.user import (
 )
 from app.utils.audit import log_activity
 from app.core.user_permission import has_user_permission
-from app.models.role_permission import RolePermissionModel
+from app.models.db_user_permission import RolePermissionModel
 import json
 
 router = APIRouter()

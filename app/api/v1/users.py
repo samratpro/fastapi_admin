@@ -73,15 +73,6 @@ async def update_user_permission(
         # Check if user has permission to modify
         if not current_user.role or current_user.role.name != "admin":
             raise HTTPException(status_code=403, detail="Only admins can Update permissions")
-        # user_permission = db.query(RolePermissionModel).filter(
-        #         RolePermissionModel.role_id == current_user.role_id
-        #     ).first()
-            
-        # if str(target_role_id) not in user_permission.user_role_and_permission:
-        #         raise HTTPException(
-        #             status_code=403,
-        #             detail=f"No permission to manage role {target_role_id}"
-        #         )
 
         permission = db.query(RolePermissionModel).filter(
             RolePermissionModel.role_id == role_id
@@ -287,6 +278,7 @@ async def create_user(
 ) -> Any:
     """Create a new user."""
     try:
+        # Check role-specific permission for non-admin users
         if not is_admin(current_user):
             permission = db.query(RolePermissionModel).filter(
                 RolePermissionModel.role_id == current_user.role_id
@@ -363,6 +355,7 @@ async def update_user(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
+        # Check role-specific permission for non-admin users
         if not is_admin(current_user):
             permission = db.query(RolePermissionModel).filter(
                 RolePermissionModel.role_id == current_user.role_id
@@ -452,6 +445,7 @@ async def delete_user(
         if user.id == current_user.id:
             raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
+        # Check role-specific permission for non-admin users
         if not is_admin(current_user):
             permission = db.query(RolePermissionModel).filter(
                 RolePermissionModel.role_id == current_user.role_id

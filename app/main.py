@@ -8,7 +8,7 @@ from app.core.security import get_current_active_user
 from app.core.permissions import has_permission
 from app.db.base import get_db  # Import get_db from session
 from app.db.base import Base, engine
-from app.api.v1 import admin, auth, courses, rbac, users
+from app.api.v1 import admin, auth, courses, db_permission, users, role
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -62,10 +62,11 @@ AdminModelRegister.register(
 )
 
 # Include routers
+app.include_router(role.router, prefix="/api/roles", tags=["roles"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(db_permission.router, prefix="/api/db_model", tags=["db_permission"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
-app.include_router(rbac.router, prefix="/api/rbac", tags=["rbac"])
 # app.include_router(courses.router, prefix="/api/courses", tags=["courses"])
 
 

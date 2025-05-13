@@ -28,3 +28,8 @@ to add new model
 6. Router will dynamically handle metadata router
 6. But, to include new model router directly add router section in main.py
 
+
+
+auth.py
+register : only - user can register need email verfication 
+

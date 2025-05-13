@@ -45,3 +45,11 @@ undo last migration : alembic downgrade -1
 auth.py
 register : only - user can register need email verfication 
 
+
+need to update:
+check db_permission
+fine tune code
+env and db config
+docker deploy
+
+

@@ -1,179 +1,221 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 from app.db.base import get_db
 from app.models.user import User
 from app.models.role import Role
 from app.models.db_user_permission import RolePermissionModel
-from app.schemas.permission import RolePermissionCreate
+from app.schemas.permission import PermissionList
 from app.core.security import get_current_active_user
-import json
+from app.utils.audit import log_activity
 from app.core.admin import AdminModelRegister
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.post("/permissions")
-async def set_permissions(
-    permission_in: RolePermissionCreate,
+@router.get("/permissions", response_model=dict)
+async def get_model_permissions(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Set or update model-specific permissions for a role in a single row."""
-    if not current_user.role or current_user.role.name != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    # Validate permission_list
-    valid_permissions = {"create", "read", "update", "delete"}
-    if not all(p in valid_permissions for p in permission_in.permission_list):
-        raise HTTPException(status_code=400, detail="Invalid permissions. Must be create, read, update, or delete")
-
-    # Validate model_name
-    if not isinstance(permission_in.model_name, str):
-        raise HTTPException(status_code=400, detail="Model name must be a string")
-
-    # Check if role exists
-    role = db.query(Role).filter(Role.id == permission_in.role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
-
-    # Find existing permission entry for the role_id
-    permission = db.query(RolePermissionModel).filter(
-        RolePermissionModel.role_id == permission_in.role_id
-    ).first()
-
-    if permission:
-        # Update existing entry
-        user_role_perms = dict(permission.user_role_and_permission)
-        role_perms = user_role_perms.get(str(permission_in.role_id), {})
-        
-        # Update or add model_name permissions
-        role_perms[permission_in.model_name] = permission_in.permission_list
-        user_role_perms[str(permission_in.role_id)] = role_perms
-        
-        permission.user_role_and_permission = user_role_perms
-        permission.model_name = json.dumps(list(role_perms.keys()))
-        permission.permissions = json.dumps([])  # Empty, as permissions are in user_role_and_permission
-    else:
-        # Create new entry
-        role_perms = {permission_in.model_name: permission_in.permission_list}
-        permission_data = {
-            "role_id": permission_in.role_id,
-            "model_name": json.dumps([permission_in.model_name]),
-            "permissions": json.dumps([]),
-            "user_role_and_permission": {str(permission_in.role_id): role_perms}
-        }
-        permission = RolePermissionModel(**permission_data)
-        db.add(permission)
-
-    db.commit()
-    return {"message": "Permissions updated successfully"}
-
-@router.get("/models-and-permissions")
-async def get_models_and_permissions(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    if not current_user.role or current_user.role.name != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
+    """Get model permissions based on role."""
     try:
-        registered_models = AdminModelRegister.get_registered_models()
-        model_list = [model.__name__ for model in registered_models]
+        result = {}
+        if current_user.role and current_user.role.name == "admin":
+            permissions = db.query(RolePermissionModel).all()
+            for permission in permissions:
+                result[str(permission.role_id)] = permission.model_permissions.get(str(permission.role_id), {})
+                logger.debug(f"Admin view - Role {permission.role_id} permissions: {result[str(permission.role_id)]}")
+        else:
+            permission = db.query(RolePermissionModel).filter(
+                RolePermissionModel.role_id == current_user.role_id
+            ).first()
+            result[str(current_user.role_id)] = permission.model_permissions.get(str(current_user.role_id), {}) if permission else {}
+            logger.debug(f"Non-admin view - Role {current_user.role_id} permissions: {result[str(current_user.role_id)]}")
 
-        permissions = db.query(RolePermissionModel).all()
-        permissions_list = []
-
-        for perm in permissions:
-            try:
-                model_name = perm.model_name
-                if isinstance(model_name, str):
-                    model_name = json.loads(model_name)
-                elif model_name is None:
-                    model_name = []
-                elif not isinstance(model_name, list):
-                    raise ValueError("Invalid model_name format")
-                
-                user_role_perms = perm.user_role_and_permission.get(str(perm.role_id), {})
-                
-                permissions_list.append({
-                    "role_id": perm.role_id,
-                    "model_permissions": user_role_perms
-                })
-            except (ValueError, TypeError, json.JSONDecodeError) as e:
-                print(f"Skipping invalid entry: {perm.model_name} (Error: {e})")
-                continue
-
-        return {
-            "models": model_list,
-            "permissions": permissions_list
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while retrieving models and permissions: {str(e)}"
+        await log_activity(
+            db=db,
+            user=current_user,
+            action="READ",
+            resource_type="ModelPermission",
+            resource_id=None,
+            changes={"permissions_viewed": list(result.keys())},
+            request=request
         )
 
-@router.get("/permissions/{role_id}")
-async def get_role_permissions(
-    role_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    if not current_user.role or current_user.role.name != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        return {"permissions": result}
+    except Exception as e:
+        logger.error(f"Error in get_model_permissions: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
-
-    permission = db.query(RolePermissionModel).filter(
-        RolePermissionModel.role_id == role_id
-    ).first()
-    
-    if not permission:
-        return {
-            "role": role.name,
-            "permissions": {}
-        }
-
-    return {
-        "role": role.name,
-        "permissions": permission.user_role_and_permission.get(str(role_id), {})
-    }
-
-@router.delete("/permissions/{role_id}/{model_name}")
-async def remove_permissions(
+@router.put("/permissions/{role_id}/{model_name}", response_model=dict)
+async def update_model_permission(
     role_id: int,
     model_name: str,
+    permission_in: PermissionList,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    if not current_user.role or current_user.role.name != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    """Update model permissions for a role."""
+    try:
+        # Check admin access
+        if not current_user.role or current_user.role.name != "admin":
+            raise HTTPException(status_code=403, detail="Only admins can update permissions")
 
-    permission = db.query(RolePermissionModel).filter(
-        RolePermissionModel.role_id == role_id
-    ).first()
+        # Validate permission_list
+        valid_permissions = {"create", "read", "update", "delete"}
+        invalid_perms = set(permission_in.permission_list) - valid_permissions
+        if invalid_perms:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid permissions: {invalid_perms}. Must be create, read, update, or delete"
+            )
 
-    if not permission:
-        raise HTTPException(
-            status_code=404, 
-            detail=f"No permissions found for role {role_id}"
+        # Validate model_name
+        if not isinstance(model_name, str):
+            raise HTTPException(status_code=400, detail="Model name must be a string")
+
+        # Check if role exists
+        role = db.query(Role).filter(Role.id == role_id).first()
+        if not role:
+            raise HTTPException(status_code=404, detail="Role not found")
+
+        # Find or create permission entry
+        permission = db.query(RolePermissionModel).filter(
+            RolePermissionModel.role_id == role_id
+        ).first()
+
+        if not permission:
+            permission = RolePermissionModel(
+                role_id=role_id,
+                model_permissions={str(role_id): {}},
+                user_role_and_permission={}
+            )
+            db.add(permission)
+
+        # Get current model_permissions
+        model_perms = dict(permission.model_permissions)
+        role_perms = model_perms.get(str(role_id), {})
+        old_permissions = role_perms.get(model_name, [])
+        logger.debug(f"Before update - Role {role_id}, Model {model_name}: {old_permissions}")
+
+        # Update model_permissions
+        role_perms[model_name] = permission_in.permission_list
+        model_perms[str(role_id)] = role_perms
+        permission.model_permissions = model_perms
+
+        # Mark model_permissions as modified
+        flag_modified(permission, "model_permissions")
+        db.add(permission)
+        db.commit()
+        db.refresh(permission)
+
+        logger.debug(f"After update - Role {role_id}, Model {model_name}: {permission.model_permissions[str(role_id)][model_name]}")
+
+        # Log activity
+        await log_activity(
+            db=db,
+            user=current_user,
+            action="UPDATE",
+            resource_type="ModelPermission",
+            resource_id=role_id,
+            changes={
+                "model_name": model_name,
+                "old_permissions": old_permissions,
+                "new_permissions": permission_in.permission_list
+            },
+            request=request
         )
 
-    user_role_perms = dict(permission.user_role_and_permission)
-    role_perms = user_role_perms.get(str(role_id), {})
-    
-    if model_name not in role_perms:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No permissions found for model {model_name} on role {role_id}"
+        return {
+            "message": "Permissions updated successfully",
+            "role_id": role_id,
+            "model_name": model_name,
+            "old_permissions": old_permissions,
+            "new_permissions": permission_in.permission_list
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in update_model_permission: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/permissions/{role_id}/{model_name}", response_model=dict)
+async def delete_model_permission(
+    role_id: int,
+    model_name: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Remove model permissions for a role."""
+    try:
+        # Check admin access
+        if not current_user.role or current_user.role.name != "admin":
+            raise HTTPException(status_code=403, detail="Only admins can delete permissions")
+
+        # Find permission record
+        permission = db.query(RolePermissionModel).filter(
+            RolePermissionModel.role_id == role_id
+        ).first()
+
+        if not permission:
+            raise HTTPException(status_code=404, detail="Permission not found")
+
+        # Get model_permissions
+        model_perms = dict(permission.model_permissions)
+        role_perms = model_perms.get(str(role_id), {})
+
+        # Check if model_name exists
+        if model_name not in role_perms:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No permissions found for model {model_name} on role {role_id}"
+            )
+
+        # Store old permissions for logging
+        old_permissions = role_perms[model_name]
+        logger.debug(f"Before delete - Role {role_id}, Model {model_name}: {old_permissions}")
+
+        # Remove model_name permissions
+        del role_perms[model_name]
+        model_perms[str(role_id)] = role_perms
+        permission.model_permissions = model_perms
+
+        # Mark model_permissions as modified
+        flag_modified(permission, "model_permissions")
+        db.add(permission)
+        db.commit()
+        db.refresh(permission)
+
+        logger.debug(f"After delete - Role {role_id} permissions: {permission.model_permissions.get(str(role_id), {})}")
+
+        # Log activity
+        await log_activity(
+            db=db,
+            user=current_user,
+            action="DELETE",
+            resource_type="ModelPermission",
+            resource_id=role_id,
+            changes={
+                "model_name": model_name,
+                "deleted_permissions": old_permissions
+            },
+            request=request
         )
 
-    del role_perms[model_name]
-    user_role_perms[str(role_id)] = role_perms
-    permission.user_role_and_permission = user_role_perms
-    permission.model_name = json.dumps(list(role_perms.keys()))
-
-    db.add(permission)
-    db.commit()
-    return {"message": "Permissions removed successfully"}
+        return {
+            "message": "Permissions removed successfully",
+            "role_id": role_id,
+            "model_name": model_name,
+            "deleted_permissions": old_permissions
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error in delete_model_permission: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

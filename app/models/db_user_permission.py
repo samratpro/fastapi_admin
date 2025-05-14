@@ -40,14 +40,14 @@ model_permissions
              },
 
 user_role_and_permission
-        {"3" : {
-            "1": ["create", "read", "update", "delete"],
-            "2": ["create", "read", "update"],
-            "3": ["read"]
+        {"role_id" : {
+            "permitted role_id": ["create", "read", "update", "delete"],
+            "permitted role_id": ["create", "read", "update"],
+            "permitted role_id": ["read"]
              },
-        "1" : {
-            "3": ["create", "read", "update", "delete"],
-            "2": ["create", "read", "update"],
-            "1": ["read"]
+        "role_id" : {
+            "permitted role_id": ["create", "read", "update", "delete"],
+            "permitted role_id": ["create", "read", "update"],
+            "permitted role_id": ["read"]
         }
     """

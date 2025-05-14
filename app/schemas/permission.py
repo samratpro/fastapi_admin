@@ -18,34 +18,33 @@ class Role(RoleBase):
     class Config:
         from_attributes = True
 
-class RolePermissionCreate(BaseModel):
-    role_id: int
-    model_name: str
+class PermissionList(BaseModel):
     permission_list: List[str]
 
     class Config:
         schema_extra = {
             "examples": {
                 "student_permissions": {
-                    "summary": "Permissions for Student model (role_id 3)",
-                    "description": "Grant create and read permissions for the Student model for role_id 3.",
+                    "summary": "Permissions for Student model",
+                    "description": "Grant create and read permissions for the Student model.",
                     "value": {
-                        "role_id": 3,
-                        "model_name": "Student",
                         "permission_list": ["create", "read"]
                     }
                 },
                 "teacher_permissions": {
-                    "summary": "Permissions for Teacher model (role_id 3)",
-                    "description": "Grant update permission for the Teacher model for role_id 3.",
+                    "summary": "Permissions for Teacher model",
+                    "description": "Grant update permission for the Teacher model.",
                     "value": {
-                        "role_id": 3,
-                        "model_name": "Teacher",
                         "permission_list": ["update"]
                     }
                 }
             }
         }
+
+class RolePermissionCreate(BaseModel):
+    role_id: int
+    model_name: str
+    permission_list: List[str]
 
 class RolePermission(RolePermissionCreate):
     id: int

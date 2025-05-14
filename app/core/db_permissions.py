@@ -2,13 +2,12 @@ from functools import wraps
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.db_user_permission import RolePermissionModel
-import json
 
 def has_permission(permission_type: str, model_name: str = None):
     """
     Decorator to check if user has permission for a specific action.
     permission_type: 'create', 'read', 'update', 'delete'
-    model_name: Optional explicit model name for permission checks.
+    model_name: Optional explicit model name for permission checks (case-insensitive).
     """
     def decorator(func):
         @wraps(func)
@@ -19,7 +18,7 @@ def has_permission(permission_type: str, model_name: str = None):
 
             # Use explicit model_name if provided, otherwise infer from the module
             inferred_model_name = func.__module__.split('.')[-1].split('_')[0].capitalize()
-            target_model_name = model_name or inferred_model_name
+            target_model_name = (model_name or inferred_model_name).lower()
 
             # Check permission in model_permissions
             permission = db.query(RolePermissionModel).filter(
@@ -32,9 +31,13 @@ def has_permission(permission_type: str, model_name: str = None):
                     detail=f"No permissions found for role {current_user.role_id}"
                 )
 
-            # Get model-specific permissions for the role
+            # Get model-specific permissions for the role (case-insensitive)
             role_perms = permission.model_permissions.get(str(current_user.role_id), {})
-            model_perms = role_perms.get(target_model_name, [])
+            model_perms = []
+            for key in role_perms:
+                if key.lower() == target_model_name:
+                    model_perms = role_perms[key]
+                    break
 
             if permission_type not in model_perms:
                 raise HTTPException(

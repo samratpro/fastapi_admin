@@ -5,7 +5,7 @@ from app.core.admin import AdminModelRegister
 from app.models.user import User
 from app.models.course import Course
 from app.core.security import get_current_active_user
-from app.core.permissions import has_permission
+from app.core.db_permissions import has_permission
 from app.db.base import get_db  # Import get_db from session
 from app.db.base import Base, engine
 from app.api.v1 import admin, auth, courses, db_permission, users, role

@@ -11,7 +11,7 @@ services:
     volumes:
       - ./app:/app/app
     ports:
-      - "8002:8000"  # make FastAPI accessible on host:8002
+      - "8002:8000"  # FastAPI accessible on host:8002 with aapnel domain
     networks:
       - web_network
 

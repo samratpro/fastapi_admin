@@ -1,4 +1,4 @@
-version: '3.2'
+version: '3.5'
 
 services:
   fastapi:
@@ -11,7 +11,7 @@ services:
     volumes:
       - ./app:/app/app
     ports:
-      - "8002:8000"  # Host port 8002 maps to container's 8000
+      - "8002:8000"  # FastAPI accessible on host:8002 with aapnel domain
     networks:
       - web_network
 

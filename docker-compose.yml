@@ -10,6 +10,7 @@ services:
       - SECRET_KEY=your-secret-key-here
     volumes:
       - ./app:/app/app
+      - ./cli.py:/app/cli.py
     ports:
       - "8002:8000"  # Host port 8002 maps to container's 8000
     networks:

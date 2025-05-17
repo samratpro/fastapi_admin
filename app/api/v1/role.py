@@ -58,7 +58,7 @@ async def list_roles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """List all roles"""
+    """List all roles (admin only)."""
     if not current_user.role or current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
@@ -71,7 +71,7 @@ async def update_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Update a role"""
+    """Update a role (admin only)."""
     if not current_user.role or current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -95,7 +95,7 @@ async def delete_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Delete a role"""
+    """Delete a role (admin only)."""
     if not current_user.role or current_user.role.name != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
 

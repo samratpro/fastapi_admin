@@ -1,5 +1,6 @@
 source venv/scripts/activate
 python cli.py create-user
+docker exec -it fastapi_app python cli.py create-user
 1: admin
 2: editor
 3: user
@@ -10,17 +11,7 @@ Password:
 Confirm Password:
 
 
-# Stop and remove existing containers
-docker-compose down
-
-# Remove old images
-docker system prune -f
-
-# Rebuild and start with logs
-docker-compose up --build
-ip:8080
-
-
+docker-compose up -d --build 
 
 to add new model
 1. create model import db/base.py
@@ -42,14 +33,7 @@ alembic upgrade head
 undo last migration : alembic downgrade -1
 
 
-auth.py
-register : only - user can register need email verfication 
 
 
-need to update:
-check db_permission
-fine tune code
-env and db config
-docker deploy
 
 
